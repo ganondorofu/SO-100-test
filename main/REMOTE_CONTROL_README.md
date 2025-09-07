@@ -77,11 +77,15 @@ pip install websockets tkinter
 # LeRobot環境をアクティベート
 conda activate lerobot
 
-# サーバー起動
-```bash
-# サーバー起動
+# サーバー起動（デフォルトCOM5）
 cd main
 python remote_control_server.py
+
+# COMポートを指定する場合
+python remote_control_server.py --com-port COM6
+
+# ホストとポートも変更する場合
+python remote_control_server.py --host 0.0.0.0 --port 8765 --com-port COM7
 ```
 
 起動時に表示される情報をメモ：
@@ -156,6 +160,31 @@ python -c "from lerobot.common.robot_devices.robots.so100 import SO100Robot; rob
 1. 両方のPCが同じネットワークに接続されているか確認
 2. サーバーのIPアドレスが正しいか確認
 3. ウイルス対策ソフトがブロックしていないか確認
+4. **URLの形式確認**: `ws://192.168.1.100:8765` の形式で入力
+5. **サーバーが起動しているか確認**: サーバー側で「Server is running!」メッセージを確認
+6. **接続テスト**: 
+   ```bash
+   # WebSocket接続をテスト
+   python test_websocket.py ws://192.168.1.100:8765
+   ```
+7. **ホスト設定確認**:
+   ```bash
+   # ローカルのみ許可（同一PC内）
+   python remote_control_server.py --host 127.0.0.1
+   
+   # 全ネットワーク許可（リモート接続可能）
+   python remote_control_server.py --host 0.0.0.0
+   ```
+
+### タイムアウトエラーの場合
+```
+Connection timed out. Check server IP and network connection.
+```
+**解決方法**:
+- サーバーのIPアドレスが正しいか再確認
+- ネットワーク接続を確認 (`ping [サーバーIP]`)
+- サーバーが正常に起動しているか確認
+- ファイアウォールがブロックしていないか確認
 
 ### 動作が遅い場合
 - WiFiの電波強度を確認
@@ -166,7 +195,35 @@ python -c "from lerobot.common.robot_devices.robots.so100 import SO100Robot; rob
 2. 管理者権限でコマンドプロンプトを実行
 3. Pythonライブラリの再インストール：
    ```bash
-   pip install websockets asyncio
+   pip install --upgrade websockets asyncio
+   ```
+4. **websocketsライブラリのバージョン問題**:
+   ```bash
+   # websocketsライブラリを最新版に更新
+   pip install --upgrade websockets
+   
+   # バージョン確認
+   python -c "import websockets; print(websockets.__version__)"
+   
+   # 特定バージョンが必要な場合
+   pip install websockets==11.0.3
+   ```
+5. **サーバー側のエラー**: `missing 1 required positional argument: 'path'`
+   ```bash
+   # サーバー環境のwebsocketsを更新
+   conda activate lerobot
+   pip install --upgrade websockets
+   ```
+6. **COMポート関連のエラー**:
+   ```bash
+   # 利用可能なCOMポートを確認
+   python -c "import serial.tools.list_ports; [print(p.device) for p in serial.tools.list_ports.comports()]"
+   
+   # 正しいCOMポートを指定してサーバー起動
+   python remote_control_server.py --com-port COM6
+   
+   # SO-100が認識されているか確認
+   python -c "from lerobot.common.robot_devices.robots.so100 import SO100Robot; print('SO-100 support OK')"
    ```
 
 ---
