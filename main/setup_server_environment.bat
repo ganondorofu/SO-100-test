@@ -6,6 +6,7 @@ echo ===================================================
 echo.
 
 echo Creating LeRobot environment...
+$env:Path = "C:\Users\20\Anaconda3\Scripts;" + $env:Path
 conda create -n lerobot python=3.10 -y
 
 echo.
