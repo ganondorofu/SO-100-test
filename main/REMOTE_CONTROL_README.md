@@ -1,116 +1,229 @@
-# SO-100 Remote Control System
+# SO-100### 🔧 初回セットアップ##### サーバー側PC（SO-100接続PC）の環境構築
+```bash
+# 1. Condaのインストール確認
+conda --version
 
-別のパソコンからSO-100ロボットアームをリモート操作するためのシステムです。
+# 2. LeRobot環境の作成
+conda create -n lerobot python=3.10 -y
+conda activate lerobot
 
-## システム構成
+# 3. LeRobotのインストール
+pip install lerobot[robot]
 
-### サーバー側（SO-100が接続されているパソコン）
+# 4. WebSocket通信用ライブラリ
+pip install websockets
+
+# 5. SO-100設定確認
+python -c "from lerobot.common.robot_devices.robots.so100 import SO100Robot; print('SO-100 setup OK')"
+```
+
+##### クライアント側PC（操作PC）の環境構築セットアップ（推奨）
+```bash
+# サーバー側PC（SO-100接続PC）
+setup_server_environment.bat
+
+# クライアント側PC（操作PC）  
+setup_client_environment.bat
+```
+
+#### 🔧 手動セットアップ（上級者向け）
+
+##### サーバー側PC（SO-100接続PC）の環境構築mote Control System
+
+## 🎯 ローカルネットワーク簡易セットアップ
+
+### 前提条件
+- 両方のPCが同じネットワーク（WiFi/LAN）に接続されていること
+- **ファイアウォール設定やポート開放は不要！**
+
+### � 初回セットアップ（初回のみ）
+
+#### サーバー側PC（SO-100接続PC）の環境構築
+```bash
+# 1. Condaのインストール確認
+conda --version
+
+# 2. LeRobot環境の作成
+conda create -n lerobot python=3.10 -y
+conda activate lerobot
+
+# 3. LeRobotのインストール
+pip install lerobot[robot]
+
+# 4. WebSocket通信用ライブラリ
+pip install websockets
+
+# 5. SO-100設定確認
+python -c "from lerobot.common.robot_devices.robots.so100 import SO100Robot; print('SO-100 setup OK')"
+```
+
+#### クライアント側PC（操作PC）の環境構築
+```bash
+# 1. Condaのインストール確認
+conda --version
+
+# 2. リモートクライアント用環境作成
+conda create -n so100-remote python=3.10 -y
+conda activate so100-remote
+
+# 3. 必要なライブラリのインストール
+pip install websockets tkinter
+```
+
+### �📋 簡単3ステップ
+
+#### 1. サーバー起動（ロボット側PC）
+```bash
+# LeRobot環境をアクティベート
+conda activate lerobot
+
+# サーバー起動
+```bash
+# サーバー起動
+cd main
+python remote_control_server.py
+```
+
+起動時に表示される情報をメモ：
+```
+🌐 Local Network IP: 192.168.1.100:8765
+📱 Client URL: ws://192.168.1.100:8765
+```
+
+#### 2. クライアント起動（操作側PC）
+```bash
+# リモートクライアント環境をアクティベート
+conda activate so100-remote
+
+# クライアント起動
+```bash
+# クライアント起動
+cd main
+python remote_control_client.py
+```
+
+#### 3. 接続
+1. クライアントのServer URLフィールドに、サーバーが表示したClient URLを入力
+2. 「Connect」ボタンをクリック
+3. 「Connected」と表示されたら完了！
+
+## 🎮 操作方法（キー反転済み）
+
+### 基本操作
+- **WASD**: Shoulder制御 (A/D反転)
+  - W: Shoulder Lift Up
+  - S: Shoulder Lift Down  
+  - A: Shoulder Pan Right (反転)
+  - D: Shoulder Pan Left (反転)
+
+- **QE**: Elbow制御
+  - Q: Elbow Flex Up
+  - E: Elbow Flex Down
+
+- **RF**: Wrist Flex制御
+  - R: Wrist Flex Up
+  - F: Wrist Flex Down
+
+- **ZX**: Wrist Roll制御（反転）
+  - Z: Wrist Roll Right (反転)
+  - X: Wrist Roll Left (反転)
+
+- **CV**: Gripper制御（反転）
+  - C: Gripper Close (反転)
+  - V: Gripper Open (反転)
+
+### 安全機能
+- **ESC**: 緊急停止（全モーター停止）
+
+## 🔧 トラブルシューティング
+
+### 環境関連のエラー
+```bash
+# Conda環境が見つからない場合
+conda info --envs
+
+# LeRobot環境の再作成
+conda remove -n lerobot --all -y
+conda create -n lerobot python=3.10 -y
+conda activate lerobot
+pip install lerobot[robot] websockets
+
+# SO-100接続テスト
+python -c "from lerobot.common.robot_devices.robots.so100 import SO100Robot; robot = SO100Robot(); print('Connection OK')"
+```
+
+### 接続できない場合
+1. 両方のPCが同じネットワークに接続されているか確認
+2. サーバーのIPアドレスが正しいか確認
+3. ウイルス対策ソフトがブロックしていないか確認
+
+### 動作が遅い場合
+- WiFiの電波強度を確認
+- 有線LAN接続を推奨
+
+### エラーが出る場合
+1. サーバーを再起動
+2. 管理者権限でコマンドプロンプトを実行
+3. Pythonライブラリの再インストール：
+   ```bash
+   pip install websockets asyncio
+   ```
+
+---
+
+## 📚 詳細セットアップ（上級者向け）
+
+### システム構成
+
+#### サーバー側（SO-100が接続されているパソコン）
 - `remote_control_server.py`: WebSocketサーバー
 - SO-100ロボットアームが物理的に接続されている
 - LeRobotライブラリが必要
 
-### クライアント側（操作用パソコン）
+#### クライアント側（操作用パソコン）
 - `remote_control_client.py`: GUIクライアント
 - ネットワーク経由でサーバーに接続
 - キーボード操作でロボットを制御
 
-## セットアップ手順
+### 依存関係のインストール
 
-### 1. 依存関係のインストール
-
-#### サーバー側
+#### サーバー側（完全なセットアップ）
 ```bash
-# LeRobotの環境が既にセットアップされている場合
+# Conda環境作成とアクティベート
+conda create -n lerobot python=3.10 -y
+conda activate lerobot
+
+# LeRobotの完全インストール
+pip install lerobot[robot]
+
+# 追加の通信ライブラリ
 pip install websockets
 
-# 新規セットアップの場合
-pip install -r remote_requirements.txt
+# インストール確認
+python -c "import lerobot; print(f'LeRobot version: {lerobot.__version__}')"
+python -c "from lerobot.common.robot_devices.robots.so100 import SO100Robot; print('SO-100 support OK')"
 ```
 
-#### クライアント側  
+#### クライアント側（軽量セットアップ）
 ```bash
-pip install -r remote_requirements.txt
+# 軽量なリモートクライアント環境
+conda create -n so100-remote python=3.10 -y
+conda activate so100-remote
+
+# 最小限のライブラリのみ
+pip install websockets
 ```
 
-### 2. ネットワーク設定
-
-#### サーバー側（SO-100接続PC）
-1. IPアドレスを確認
-   ```bash
-   ipconfig  # Windows
-   # または
-   ifconfig  # Linux/Mac
-   ```
-
-2. ファイアウォール設定
-   - ポート8765を開放
-   - Windows Defender等でPythonの通信を許可
-
-#### クライアント側（操作PC）
-1. サーバーIPアドレスを記録
-2. 同一ネットワーク内にあることを確認
-
-## 使用方法
-
-### 1. サーバー起動（SO-100接続PC）
+#### ワンライナーセットアップ（上級者向け）
 ```bash
-cd /path/to/SO-100/main
-python remote_control_server.py
+# サーバー側
+conda create -n lerobot python=3.10 -y && conda activate lerobot && pip install lerobot[robot] websockets
+
+# クライアント側  
+conda create -n so100-remote python=3.10 -y && conda activate so100-remote && pip install websockets
 ```
 
-起動メッセージ例：
-```
-INFO:__main__:Starting SO-100 remote server on 0.0.0.0:8765
-INFO:__main__:Initializing SO-100 robot...
-INFO:__main__:Robot initialized successfully
-INFO:__main__:Server started successfully
-```
-
-### 2. クライアント起動（操作PC）
-```bash
-cd /path/to/SO-100/main
-python remote_control_client.py
-```
-
-### 3. 接続
-1. クライアントGUIが開く
-2. Server URLに `ws://[サーバーIP]:8765` を入力
-   - 例: `ws://192.168.1.100:8765`
-3. "Connect" ボタンをクリック
-4. 接続成功で "Connected" と表示
-
-### 4. ロボット操作
-
-#### キーボード制御
-- **WASD**: shoulder_pan/lift制御
-  - W: shoulder_lift up
-  - S: shoulder_lift down  
-  - A: shoulder_pan left
-  - D: shoulder_pan right
-
-- **QE**: elbow_flex制御
-  - Q: elbow_flex up
-  - E: elbow_flex down
-
-- **RF**: wrist_flex制御
-  - R: wrist_flex up
-  - F: wrist_flex down
-
-- **ZX**: wrist_roll制御
-  - Z: wrist_roll left
-  - X: wrist_roll right
-
-- **CV**: gripper制御
-  - C: gripper open
-  - V: gripper close
-
-- **ESC**: 緊急停止
-
-#### 緊急停止
-- ESCキー または 緊急停止ボタンで即座に停止
-- 再度ESCで通常操作に復帰
-
-## ステータス表示
+### ステータス表示
 
 クライアントGUIに以下の情報がリアルタイム表示されます：
 
@@ -119,45 +232,9 @@ python remote_control_client.py
 - **Current Positions**: 現在の関節角度
 - **Target Positions**: 目標関節角度
 
-## トラブルシューティング
+### カスタマイズ
 
-### 接続できない場合
-1. **ネットワーク確認**
-   ```bash
-   ping [サーバーIP]
-   ```
-
-2. **ポート確認**
-   ```bash
-   telnet [サーバーIP] 8765
-   ```
-
-3. **ファイアウォール**
-   - Windows Defender等でポート8765を開放
-   - セキュリティソフトの設定確認
-
-### ロボットが動かない場合
-1. **サーバー側ログ確認**
-   - ロボット初期化エラーの有無
-   - コマンド受信ログ
-
-2. **SO-100接続確認**
-   - USBケーブル接続
-   - ドライバーインストール
-   - 電源供給
-
-### 動作が遅い場合
-1. **ネットワーク遅延**
-   - 有線LAN使用推奨
-   - Wi-Fi品質確認
-
-2. **更新頻度調整**
-   - サーバー側の `time.sleep(0.05)` を調整
-   - クライアント側の更新間隔調整
-
-## カスタマイズ
-
-### キーマッピング変更
+#### キーマッピング変更
 `remote_control_client.py` の `key_mapping` 辞書を編集：
 
 ```python
@@ -167,32 +244,19 @@ self.key_mapping = {
 }
 ```
 
-### 通信ポート変更
+#### 通信ポート変更
 サーバー・クライアント両方で同じポート番号に変更：
 
 ```python
 # サーバー側
-SO100RemoteServer(host='0.0.0.0', port=9999)
+SO100RemoteServer(host='127.0.0.1', port=9999)
 
 # クライアント側
 self.server_url = "ws://localhost:9999"
 ```
 
-### 制御パラメータ調整
-サーバー側で移動量やスピードを調整：
+### セキュリティ注意事項
 
-```python
-# remote_control_server.py内
-delta = 0.5  # 移動量
-time.sleep(0.05)  # 制御間隔
-```
-
-## セキュリティ注意事項
-
-- 信頼できるネットワーク内でのみ使用
+- ローカルネットワーク内でのみ使用（ファイアウォール設定不要）
 - パスワード認証等は実装されていない
-- 本番環境では追加のセキュリティ対策を推奨
-
-## ライセンス
-
-LeRobotプロジェクトのライセンスに準拠
+- 信頼できるネットワーク内でのみ使用してください

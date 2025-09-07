@@ -36,8 +36,8 @@ class SO100RemoteClient:
             # WASD keys
             'w': 'shoulder_lift_up',
             's': 'shoulder_lift_down', 
-            'a': 'shoulder_pan_left',
-            'd': 'shoulder_pan_right',
+            'a': 'shoulder_pan_right',  # 反転: left -> right
+            'd': 'shoulder_pan_left',   # 反転: right -> left
             
             # QE keys for elbow
             'q': 'elbow_flex_up',
@@ -48,12 +48,12 @@ class SO100RemoteClient:
             'f': 'wrist_flex_down',
             
             # ZX keys for wrist roll
-            'z': 'wrist_roll_left',
-            'x': 'wrist_roll_right',
+            'z': 'wrist_roll_right',    # 反転: left -> right
+            'x': 'wrist_roll_left',     # 反転: right -> left
             
             # CV keys for gripper
-            'c': 'gripper_open',
-            'v': 'gripper_close',
+            'c': 'gripper_close',       # 反転: open -> close
+            'v': 'gripper_open',        # 反転: close -> open
         }
         
         self.pressed_keys = set()
@@ -89,12 +89,12 @@ class SO100RemoteClient:
         
         # キーボード制御説明
         instructions = """
-キーボード制御:
-WASD: shoulder_pan/lift
+キーボード制御 (一部キー反転済み):
+WASD: shoulder_pan/lift (A/D反転)
 QE: elbow_flex  
 RF: wrist_flex
-ZX: wrist_roll
-CV: gripper
+ZX: wrist_roll (反転)
+CV: gripper (反転)
 ESC: Emergency Stop
         """
         
