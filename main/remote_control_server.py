@@ -22,9 +22,10 @@ from lerobot.common.robot_devices.robots.manipulator import ManipulatorRobot
 class SO100RemoteServer:
     """SO-100リモート制御サーバー"""
     
-    def __init__(self, host='127.0.0.1', port=8765):
+    def __init__(self, host='0.0.0.0', port=8765, com_port='COM5'):
         self.host = host
         self.port = port
+        self.com_port = com_port  # COMポート設定を追加
         self.robot = None
         self.clients = set()
         self.command_queue = queue.Queue()
@@ -38,6 +39,9 @@ class SO100RemoteServer:
         # ログ設定
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
+        
+        # 起動時にCOMポート情報を表示
+        print(f"🔌 Using COM Port: {self.com_port}")
         
     def get_local_ip(self):
         """ローカルIPアドレスを取得"""
@@ -58,7 +62,8 @@ class SO100RemoteServer:
         print("=" * 60)
         print("🤖 SO-100 Remote Control Server Starting...")
         print("=" * 60)
-        print(f"📡 Server Address: {self.host}:{self.port}")
+        print(f"� COM Port: {self.com_port}")
+        print(f"�📡 Server Address: {self.host}:{self.port}")
         print(f"🌐 Local Network IP: {local_ip}:{self.port}")
         print(f"📱 Client URL: ws://{local_ip}:{self.port}")
         print("=" * 60)
@@ -78,22 +83,49 @@ class SO100RemoteServer:
         command_thread.start()
         
         # WebSocketサーバー開始
-        async with websockets.serve(self.handle_client, self.host, self.port):
-            self.logger.info("✅ Server started successfully")
-            print("✅ Server is running! Waiting for clients...")
-            await asyncio.Future()  # 永続実行
+        self.logger.info("Starting WebSocket server...")
+        self.logger.info(f"Binding to {self.host}:{self.port}")
+        
+        # シンプルなサーバー起動（互換性重視）
+        try:
+            async with websockets.serve(self.handle_client, self.host, self.port):
+                self.logger.info("✅ Server started successfully")
+                self.logger.info(f"📡 Listening on {self.host}:{self.port}")
+                self.logger.info(f"🌐 Local Network URL: ws://{local_ip}:{self.port}")
+                print("✅ Server is running! Waiting for clients...")
+                await asyncio.Future()  # 永続実行
+        except Exception as e:
+            self.logger.error(f"Failed to start server: {e}")
+            print(f"❌ Server startup failed: {e}")
+            raise
             
     def _init_robot(self):
         """ロボットを初期化"""
         try:
-            self.logger.info("Initializing SO-100 robot...")
+            self.logger.info(f"Initializing SO-100 robot on {self.com_port}...")
             
-            # ロボット設定
+            # ロボット設定（COMポートを動的に設定）
             config = {
                 'robot_type': 'so100',
                 'max_relative_target': None,
                 'calibration_dir': '.cache',
-                'gripper_open_degree': 45
+                'gripper_open_degree': 45,
+                'leader_arms': {},  # リーダーアームは使用しない
+                'follower_arms': {
+                    'main': {
+                        'type': 'feetech',
+                        'port': self.com_port,  # 設定可能なCOMポート
+                        'motors': {
+                            'shoulder_pan': [1, 'sts3215'],
+                            'shoulder_lift': [2, 'sts3215'],
+                            'elbow_flex': [3, 'sts3215'],
+                            'wrist_flex': [4, 'sts3215'],
+                            'wrist_roll': [5, 'sts3215'],
+                            'gripper': [6, 'sts3215']
+                        }
+                    }
+                },
+                'cameras': {}
             }
             
             # ロボット初期化
@@ -101,7 +133,10 @@ class SO100RemoteServer:
                 robot_type=config['robot_type'],
                 max_relative_target=config['max_relative_target'],
                 calibration_dir=config['calibration_dir'],
-                gripper_open_degree=config['gripper_open_degree']
+                gripper_open_degree=config['gripper_open_degree'],
+                leader_arms=config['leader_arms'],
+                follower_arms=config['follower_arms'],
+                cameras=config['cameras']
             )
             
             # 接続
@@ -211,11 +246,17 @@ class SO100RemoteServer:
             except Exception as e:
                 self.logger.error(f"Failed to update status: {e}")
                 
-    async def handle_client(self, websocket, path):
-        """クライアント接続を処理"""
+    async def handle_client(self, websocket, path=None):
+        """クライアント接続を処理（websocketsライブラリ互換性対応）"""
+        # pathパラメータは新しいバージョンでは使われない場合があるため、オプショナルにする
         self.clients.add(websocket)
-        client_addr = websocket.remote_address
-        self.logger.info(f"Client connected: {client_addr}")
+        try:
+            client_addr = websocket.remote_address
+        except:
+            client_addr = "unknown"
+        
+        self.logger.info(f"🔌 Client connection attempt from: {client_addr}")
+        print(f"🔌 Client connected: {client_addr}")
         
         try:
             # ウェルカムメッセージ送信
@@ -225,6 +266,7 @@ class SO100RemoteServer:
                 'status': self.status_data
             }
             await websocket.send(json.dumps(welcome_msg))
+            self.logger.info(f"✅ Welcome message sent to {client_addr}")
             
             # ステータス送信ループ開始
             status_task = asyncio.create_task(self._send_status_updates(websocket))
@@ -293,7 +335,24 @@ class SO100RemoteServer:
 
 def main():
     """メイン関数"""
-    server = SO100RemoteServer(host='0.0.0.0', port=8765)
+    import argparse
+    
+    # コマンドライン引数の設定
+    parser = argparse.ArgumentParser(description='SO-100 Remote Control Server')
+    parser.add_argument('--host', default='0.0.0.0', help='Server host address (default: 0.0.0.0)')
+    parser.add_argument('--port', type=int, default=8765, help='Server port (default: 8765)')
+    parser.add_argument('--com-port', default='COM5', help='COM port for SO-100 robot (default: COM5)')
+    
+    args = parser.parse_args()
+    
+    print("=" * 60)
+    print("🤖 SO-100 Remote Control Server")
+    print("=" * 60)
+    print(f"🔌 COM Port: {args.com_port}")
+    print(f"📡 Server: {args.host}:{args.port}")
+    print("=" * 60)
+    
+    server = SO100RemoteServer(host=args.host, port=args.port, com_port=args.com_port)
     
     # ロボット制御ループを別スレッドで開始
     robot_loop_thread = threading.Thread(target=server.run_robot_loop, daemon=True)

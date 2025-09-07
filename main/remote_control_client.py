@@ -12,6 +12,7 @@ import websockets
 import threading
 import time
 import logging
+import queue
 from typing import Optional, Dict, Any
 
 
@@ -23,6 +24,9 @@ class SO100RemoteClient:
         self.connected = False
         self.server_url = "ws://localhost:8765"  # デフォルト
         self.status_data = {}
+        
+        # コマンドキュー
+        self.command_queue = queue.Queue()
         
         # ログ設定
         logging.basicConfig(level=logging.INFO)
@@ -141,11 +145,30 @@ ESC: Emergency Stop
         if self.connected:
             self.disconnect()
         else:
+            # 接続ボタンが無効になっている場合は何もしない
+            if self.connect_button.cget("state") == "disabled":
+                return
             self.connect()
             
     def connect(self):
         """サーバーに接続"""
-        self.server_url = self.url_entry.get()
+        server_url = self.url_entry.get().strip()
+        
+        # URL形式チェック
+        if not server_url.startswith('ws://'):
+            messagebox.showerror("URL Error", "Server URL must start with 'ws://'")
+            return
+            
+        # URLが空でないかチェック
+        if not server_url or server_url == 'ws://':
+            messagebox.showerror("URL Error", "Please enter a valid server URL")
+            return
+            
+        self.server_url = server_url
+        
+        # 接続中表示
+        self.status_label.config(text="Connecting...", foreground="orange")
+        self.connect_button.config(text="Connecting...", state="disabled")
         
         # WebSocket接続を別スレッドで開始
         thread = threading.Thread(target=self.run_websocket_client, daemon=True)
@@ -159,38 +182,104 @@ ESC: Emergency Stop
             
     async def websocket_client(self):
         """WebSocketクライアントメインループ"""
+        error_message = None
         try:
-            async with websockets.connect(self.server_url) as websocket:
-                self.websocket = websocket
-                self.connected = True
-                
-                # GUI更新
-                self.root.after(0, lambda: [
-                    self.status_label.config(text="Connected", foreground="green"),
-                    self.connect_button.config(text="Disconnect")
-                ])
-                
-                self.logger.info(f"Connected to {self.server_url}")
-                
-                # メッセージ受信ループ
-                async for message in websocket:
-                    try:
-                        data = json.loads(message)
-                        self.handle_server_message(data)
-                    except json.JSONDecodeError:
-                        self.logger.error(f"Invalid JSON received: {message}")
+            # タイムアウト設定（古いwebsocketsライブラリ対応）
+            try:
+                # 新しいバージョン用
+                async with websockets.connect(
+                    self.server_url, 
+                    timeout=10,
+                    ping_interval=20,
+                    ping_timeout=10
+                ) as websocket:
+                    await self._handle_connection(websocket)
+            except TypeError:
+                # 古いバージョン用（timeoutパラメータなし）
+                async with websockets.connect(self.server_url) as websocket:
+                    await self._handle_connection(websocket)
                         
         except websockets.exceptions.ConnectionClosed:
             self.logger.info("Connection closed")
+            error_message = "Connection was closed by server"
+        except websockets.exceptions.InvalidURI:
+            error_message = "Invalid server URL format"
+            self.logger.error(f"Invalid URI: {self.server_url}")
+        except ConnectionRefusedError:
+            error_message = "Server is not running or refusing connections"
+            self.logger.error("Connection refused")
+        except OSError as e:
+            if "timed out" in str(e).lower():
+                error_message = "Connection timed out. Check server IP and network connection."
+            else:
+                error_message = f"Network error: {str(e)}"
+            self.logger.error(f"Network error: {e}")
         except Exception as e:
+            error_message = f"Connection error: {str(e)}"
             self.logger.error(f"WebSocket error: {e}")
-            self.root.after(0, lambda: messagebox.showerror("Connection Error", str(e)))
         finally:
             self.connected = False
             self.root.after(0, lambda: [
                 self.status_label.config(text="Disconnected", foreground="red"),
-                self.connect_button.config(text="Connect")
+                self.connect_button.config(text="Connect", state="normal")
             ])
+            
+            # エラーメッセージを表示（変数スコープ問題を修正）
+            if error_message:
+                self.root.after(0, lambda msg=error_message: messagebox.showerror("Connection Error", msg))
+    
+    async def _handle_connection(self, websocket):
+        """WebSocket接続の処理"""
+        self.websocket = websocket
+        self.connected = True
+        
+        # GUI更新
+        self.root.after(0, lambda: [
+            self.status_label.config(text="Connected", foreground="green"),
+            self.connect_button.config(text="Disconnect", state="normal")
+        ])
+        
+        self.logger.info(f"Connected to {self.server_url}")
+        
+        # コマンド送信タスクとメッセージ受信タスクを並行実行
+        send_task = asyncio.create_task(self._send_commands_loop(websocket))
+        receive_task = asyncio.create_task(self._receive_messages_loop(websocket))
+        
+        try:
+            # どちらかのタスクが終了するまで待機
+            await asyncio.gather(send_task, receive_task, return_exceptions=True)
+        finally:
+            send_task.cancel()
+            receive_task.cancel()
+            
+    async def _send_commands_loop(self, websocket):
+        """コマンド送信ループ"""
+        while self.connected:
+            try:
+                # キューからコマンドを取得（非ブロッキング）
+                if not self.command_queue.empty():
+                    message = self.command_queue.get_nowait()
+                    await websocket.send(message)
+                else:
+                    # キューが空の場合は少し待機
+                    await asyncio.sleep(0.01)
+            except Exception as e:
+                self.logger.error(f"Error in send loop: {e}")
+                break
+                
+    async def _receive_messages_loop(self, websocket):
+        """メッセージ受信ループ"""
+        try:
+            async for message in websocket:
+                try:
+                    data = json.loads(message)
+                    self.handle_server_message(data)
+                except json.JSONDecodeError:
+                    self.logger.error(f"Invalid JSON received: {message}")
+        except websockets.exceptions.ConnectionClosed:
+            self.logger.info("Server connection closed")
+        except Exception as e:
+            self.logger.error(f"Error in receive loop: {e}")
             
     def run_websocket_client(self):
         """WebSocketクライアントを実行"""
@@ -286,9 +375,10 @@ ESC: Emergency Stop
         if self.connected and self.websocket:
             try:
                 message = json.dumps(command)
-                asyncio.create_task(self.websocket.send(message))
+                # コマンドをキューに追加
+                self.command_queue.put(message)
             except Exception as e:
-                self.logger.error(f"Failed to send command: {e}")
+                self.logger.error(f"Failed to queue command: {e}")
                 
     def run(self):
         """クライアント実行"""

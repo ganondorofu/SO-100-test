@@ -14,7 +14,7 @@ call conda activate so100-remote
 
 echo.
 echo Installing required packages...
-pip install websockets
+pip install --upgrade websockets
 
 echo.
 echo Testing installation...

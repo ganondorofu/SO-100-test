@@ -6,7 +6,6 @@ echo ===================================================
 echo.
 
 echo Creating LeRobot environment...
-$env:Path = "C:\Users\20\Anaconda3\Scripts;" + $env:Path
 conda create -n lerobot python=3.10 -y
 
 echo.
@@ -19,7 +18,7 @@ pip install lerobot[robot]
 
 echo.
 echo Installing WebSocket support...
-pip install websockets
+pip install --upgrade websockets
 
 echo.
 echo Testing installation...
