@@ -1,18 +1,19 @@
 @echo off
-echo ========================================
-echo SO-100 Remote Control Server
-echo ========================================
+echo ===================================================
+echo   SO-100 Remote Control Server
+echo   ローカルネットワーク用設定（ポート開放不要）
+echo ===================================================
 echo.
 
-echo Installing required packages...
+echo Activating LeRobot environment...
+call conda activate lerobot
+
+echo Installing/updating required packages...
 pip install websockets
 
 echo.
-echo Starting SO-100 Remote Control Server...
-echo Server will be available at: ws://[YOUR-IP]:8765
-echo.
-echo Press Ctrl+C to stop the server
-echo ========================================
+echo Starting server...
+echo サーバー起動時に表示されるIPアドレスをメモしてください
 echo.
 
 python remote_control_server.py

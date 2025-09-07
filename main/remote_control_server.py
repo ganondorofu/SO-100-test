@@ -10,6 +10,7 @@ import logging
 import websockets
 import torch
 import time
+import socket
 from typing import Dict, Any
 import threading
 import queue
@@ -21,7 +22,7 @@ from lerobot.common.robot_devices.robots.manipulator import ManipulatorRobot
 class SO100RemoteServer:
     """SO-100リモート制御サーバー"""
     
-    def __init__(self, host='0.0.0.0', port=8765):
+    def __init__(self, host='127.0.0.1', port=8765):
         self.host = host
         self.port = port
         self.robot = None
@@ -38,9 +39,35 @@ class SO100RemoteServer:
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
         
+    def get_local_ip(self):
+        """ローカルIPアドレスを取得"""
+        try:
+            # Google DNSに接続してローカルIPを取得（実際には接続しない）
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+            return local_ip
+        except Exception:
+            return "127.0.0.1"
+        
     async def start_server(self):
         """WebSocketサーバーを開始"""
+        local_ip = self.get_local_ip()
+        
+        print("=" * 60)
+        print("🤖 SO-100 Remote Control Server Starting...")
+        print("=" * 60)
+        print(f"📡 Server Address: {self.host}:{self.port}")
+        print(f"🌐 Local Network IP: {local_ip}:{self.port}")
+        print(f"📱 Client URL: ws://{local_ip}:{self.port}")
+        print("=" * 60)
+        print("🔒 No firewall configuration required!")
+        print("📋 Copy the Client URL to your remote computer")
+        print("=" * 60)
+        
         self.logger.info(f"Starting SO-100 remote server on {self.host}:{self.port}")
+        self.logger.info(f"Local IP: {local_ip}")
         
         # ロボット初期化を別スレッドで実行
         robot_thread = threading.Thread(target=self._init_robot, daemon=True)
@@ -52,7 +79,8 @@ class SO100RemoteServer:
         
         # WebSocketサーバー開始
         async with websockets.serve(self.handle_client, self.host, self.port):
-            self.logger.info("Server started successfully")
+            self.logger.info("✅ Server started successfully")
+            print("✅ Server is running! Waiting for clients...")
             await asyncio.Future()  # 永続実行
             
     def _init_robot(self):
