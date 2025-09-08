@@ -11,6 +11,7 @@ import websockets
 import torch
 import time
 import socket
+import traceback
 from typing import Dict, Any
 import threading
 import queue
@@ -99,59 +100,130 @@ class SO100RemoteServer:
             print(f"❌ Server startup failed: {e}")
             raise
             
+    def _check_com_port(self):
+        """COMポートの可用性をチェック"""
+        try:
+            import serial.tools.list_ports
+            
+            # 利用可能なCOMポートを取得
+            available_ports = [port.device for port in serial.tools.list_ports.comports()]
+            print(f"🔍 Available COM ports: {available_ports}")
+            
+            if self.com_port in available_ports:
+                print(f"✅ {self.com_port} is available")
+                return True
+            else:
+                print(f"❌ {self.com_port} is not available")
+                return False
+                
+        except ImportError:
+            print("⚠️ pyserial not installed, cannot check COM ports")
+            return True  # assume available
+        except Exception as e:
+            print(f"⚠️ Error checking COM ports: {e}")
+            return True  # assume available
+            
     def _init_robot(self):
         """ロボットを初期化"""
         try:
             self.logger.info(f"Initializing SO-100 robot on {self.com_port}...")
+            print(f"🤖 Initializing robot on {self.com_port}...")
             
-            # ロボット設定（COMポートを動的に設定）
-            config = {
-                'robot_type': 'so100',
-                'max_relative_target': None,
-                'calibration_dir': '.cache',
-                'gripper_open_degree': 45,
-                'leader_arms': {},  # リーダーアームは使用しない
-                'follower_arms': {
-                    'main': {
-                        'type': 'feetech',
-                        'port': self.com_port,  # 設定可能なCOMポート
-                        'motors': {
-                            'shoulder_pan': [1, 'sts3215'],
-                            'shoulder_lift': [2, 'sts3215'],
-                            'elbow_flex': [3, 'sts3215'],
-                            'wrist_flex': [4, 'sts3215'],
-                            'wrist_roll': [5, 'sts3215'],
-                            'gripper': [6, 'sts3215']
-                        }
-                    }
-                },
-                'cameras': {}
+            # COMポートをチェック
+            if not self._check_com_port():
+                raise RuntimeError(f"COM port {self.com_port} is not available")
+            
+            # ロボット設定（SO-100専用設定クラスを使用）
+            from lerobot.common.robot_devices.robots.configs import So100RobotConfig
+            from lerobot.common.robot_devices.motors.feetech import FeetechMotorsBusConfig
+            
+            # Feetechモーターバス設定
+            follower_arms = {
+                "main": FeetechMotorsBusConfig(
+                    port=self.com_port,
+                    motors={
+                        "shoulder_pan": (1, "sts3215"),
+                        "shoulder_lift": (2, "sts3215"),
+                        "elbow_flex": (3, "sts3215"),
+                        "wrist_flex": (4, "sts3215"),
+                        "wrist_roll": (5, "sts3215"),
+                        "gripper": (6, "sts3215"),
+                    },
+                ),
             }
             
-            # ロボット初期化
-            self.robot = ManipulatorRobot(
-                robot_type=config['robot_type'],
-                max_relative_target=config['max_relative_target'],
-                calibration_dir=config['calibration_dir'],
-                gripper_open_degree=config['gripper_open_degree'],
-                leader_arms=config['leader_arms'],
-                follower_arms=config['follower_arms'],
-                cameras=config['cameras']
+            # SO-100ロボット設定
+            config = So100RobotConfig(
+                leader_arms={},  # リーダーアームは使用しない
+                follower_arms=follower_arms,
+                cameras={},
+                max_relative_target=None
             )
             
+            print(f"🔧 SO-100 config created")
+            
+            # ロボット初期化
+            print("📡 Creating ManipulatorRobot instance...")
+            self.robot = ManipulatorRobot(config)
+            
             # 接続
+            print("🔌 Connecting to robot...")
             self.robot.connect()
+            print("✅ Robot connected successfully")
             self.status_data['connected'] = True
             
             # 初期位置を読み取り
+            print("📊 Reading initial positions...")
             current_pos = self.robot._read_current_positions()
             self.robot.keyboard_controller.initialize_target_positions(current_pos)
+            print("🎯 Target positions initialized")
+            
+            # モーター動作テスト - shoulder_panを少し動かす
+            print("🔧 Testing motor movement (shoulder_pan)...")
+            try:
+                import time
+                import numpy as np
+                
+                # 現在位置を保存
+                original_pos = current_pos["main"].clone()
+                print(f"📍 Original positions: {original_pos}")
+                
+                # shoulder_pan (インデックス0) を5度動かす
+                test_pos = original_pos.clone()
+                test_pos[0] += 5.0  # 5度プラス方向
+                
+                print(f"➡️ Moving shoulder_pan from {original_pos[0]:.1f}° to {test_pos[0]:.1f}°...")
+                self.robot.follower_arms["main"].write("Goal_Position", test_pos.numpy().astype(np.float32))
+                
+                # 2秒待つ
+                time.sleep(2.0)
+                
+                # 元の位置に戻す
+                print(f"⬅️ Returning shoulder_pan to original position {original_pos[0]:.1f}°...")
+                self.robot.follower_arms["main"].write("Goal_Position", original_pos.numpy().astype(np.float32))
+                
+                # 2秒待つ
+                time.sleep(2.0)
+                
+                print("✅ Motor movement test completed - Robot is responding!")
+                
+            except Exception as e:
+                print(f"⚠️ Motor movement test failed: {e}")
+                print(f"📋 Motor test error: {traceback.format_exc()}")
             
             self.logger.info("Robot initialized successfully")
+            print("✅ Robot initialization complete")
             
         except Exception as e:
-            self.logger.error(f"Failed to initialize robot: {e}")
+            error_msg = f"Failed to initialize robot: {e}"
+            self.logger.error(error_msg)
+            print(f"❌ {error_msg}")
+            print(f"🔍 Error details: {type(e).__name__}: {e}")
             self.status_data['connected'] = False
+            
+            # エラー内容をさらに詳細に記録
+            import traceback
+            traceback.print_exc()
             
     def _process_commands(self):
         """コマンドキューを処理"""
