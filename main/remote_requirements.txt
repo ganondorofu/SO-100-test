@@ -1,6 +1,0 @@
-# SO-100 Remote Control Dependencies
-websockets>=11.0
-asyncio
-torch
-numpy
-tkinter

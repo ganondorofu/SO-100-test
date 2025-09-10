@@ -45,6 +45,13 @@ python lerobot/scripts/control_robot.py \
     --robot.type=so100 \
     --robot.cameras='{}' \
     --control.type=keyboard
+
+# With custom COM port (automatically updates config file):
+python lerobot/scripts/control_robot.py \
+    --robot.type=so100 \
+    --robot.port=COM5 \
+    --robot.cameras='{}' \
+    --control.type=keyboard
 ```
 
 - Unlimited teleoperation with keyboard control for follower arm:
@@ -188,11 +195,16 @@ import logging
 import os
 import sys
 import time
+import json
 from dataclasses import asdict
 from pathlib import Path
 from pprint import pformat
 
-import rerun as rr
+try:
+    import rerun as rr
+except ImportError:
+    print("Warning: rerun module not found. Display functionality may be limited.")
+    rr = None
 
 # from safetensors.torch import load_file, save_file
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
@@ -470,6 +482,10 @@ def _init_rerun(control_config: ControlConfig, session_name: str = "lerobot_cont
     Raises:
         ValueError: If viewer IP is missing for non-remote configurations with display enabled.
     """
+    if rr is None:
+        print("Warning: rerun module not available. Skipping display initialization.")
+        return
+        
     if (control_config.display_data and not is_headless()) or (
         control_config.display_data and isinstance(control_config, RemoteRobotConfig)
     ):
@@ -530,20 +546,145 @@ def control_robot(cfg: ControlPipelineConfig):
 def _get_config_path_for_keyboard_mode():
     """Get the config path for keyboard mode if keyboard control type is specified."""
     # Check if --control.type=keyboard is specified in CLI args
+    keyboard_mode = False
+    robot_port = None
+    
     for arg in sys.argv:
         if arg == "--control.type=keyboard":
-            # Use so100_keyboard_config.json automatically for keyboard mode
-            config_path = Path(__file__).parent.parent.parent / "so100_keyboard_config.json"
-            if config_path.exists():
-                return config_path
-            else:
-                print(f"Warning: {config_path} not found, using default config")
-                return None
+            keyboard_mode = True
+            break
+    
+    if keyboard_mode:
+        # Check for COM port specification and update config file
+        for i, arg in enumerate(sys.argv):
+            if arg.startswith("--robot.port="):
+                robot_port = arg.split("=", 1)[1]
+                # Remove the --robot.port argument from sys.argv to avoid parsing errors
+                sys.argv.remove(arg)
+                break
+            elif arg == "--robot.port" and i + 1 < len(sys.argv):
+                robot_port = sys.argv[i + 1]
+                # Remove both --robot.port and its value from sys.argv
+                sys.argv.remove(arg)
+                sys.argv.remove(robot_port)
+                break
+        
+        # Update config file with COM port if specified
+        if robot_port:
+            _update_config_file_com_port(robot_port)
+        
+        # Use so100_keyboard_config.json automatically for keyboard mode
+        config_path = Path(__file__).parent.parent.parent / "so100_keyboard_config.json"
+        if config_path.exists():
+            return config_path
+        else:
+            print(f"Warning: {config_path} not found, using default config")
+            return None
     return None
+
+
+def _process_com_port_for_keyboard_mode(cfg):
+    """Process COM port setting for keyboard and teleoperate modes from command line arguments."""
+    # Check for follower.COM and leader.COM arguments
+    follower_port = None
+    leader_port = None
+    
+    for i, arg in enumerate(sys.argv):
+        # Check for --follower.COM
+        if arg.startswith("--follower.COM="):
+            follower_port = arg.split("=", 1)[1]
+        elif arg == "--follower.COM" and i + 1 < len(sys.argv):
+            follower_port = sys.argv[i + 1]
+        # Check for --leader.COM
+        elif arg.startswith("--leader.COM="):
+            leader_port = arg.split("=", 1)[1]
+        elif arg == "--leader.COM" and i + 1 < len(sys.argv):
+            leader_port = sys.argv[i + 1]
+        # Legacy support for --robot.port
+        elif arg.startswith("--robot.port="):
+            follower_port = arg.split("=", 1)[1]
+        elif arg == "--robot.port" and i + 1 < len(sys.argv):
+            follower_port = sys.argv[i + 1]
+    
+    # Update follower arm configuration
+    if follower_port and hasattr(cfg, 'robot') and hasattr(cfg.robot, 'follower_arms'):
+        print(f"🔌 フォロワーアーム COMポート: {follower_port}")
+        try:
+            if hasattr(cfg.robot.follower_arms, 'main'):
+                if hasattr(cfg.robot.follower_arms.main, 'port'):
+                    cfg.robot.follower_arms.main.port = follower_port
+                else:
+                    setattr(cfg.robot.follower_arms.main, 'port', follower_port)
+            elif isinstance(cfg.robot.follower_arms, dict) and 'main' in cfg.robot.follower_arms:
+                if hasattr(cfg.robot.follower_arms['main'], 'port'):
+                    cfg.robot.follower_arms['main'].port = follower_port
+                else:
+                    setattr(cfg.robot.follower_arms['main'], 'port', follower_port)
+        except Exception as e:
+            print(f"⚠️ フォロワーアーム COMポート設定エラー: {e}")
+    
+    # Update leader arm configuration (for teleoperate mode)
+    if leader_port and hasattr(cfg, 'robot') and hasattr(cfg.robot, 'leader_arms'):
+        print(f"🔌 リーダーアーム COMポート: {leader_port}")
+        try:
+            if hasattr(cfg.robot.leader_arms, 'main'):
+                if hasattr(cfg.robot.leader_arms.main, 'port'):
+                    cfg.robot.leader_arms.main.port = leader_port
+                else:
+                    setattr(cfg.robot.leader_arms.main, 'port', leader_port)
+            elif isinstance(cfg.robot.leader_arms, dict) and 'main' in cfg.robot.leader_arms:
+                if hasattr(cfg.robot.leader_arms['main'], 'port'):
+                    cfg.robot.leader_arms['main'].port = leader_port
+                else:
+                    setattr(cfg.robot.leader_arms['main'], 'port', leader_port)
+        except Exception as e:
+            print(f"⚠️ リーダーアーム COMポート設定エラー: {e}")
+    
+    # Show current configuration
+    if follower_port or leader_port:
+        print("📋 COMポート設定完了")
+        if follower_port:
+            print(f"  フォロワーアーム: {follower_port}")
+        if leader_port:
+            print(f"  リーダーアーム: {leader_port}")
+    
+    return cfg
+    
+    return cfg
+
+
+def _update_config_file_com_port(com_port):
+    """Update the COM port in the keyboard config file."""
+    config_path = Path(__file__).parent.parent.parent / "so100_keyboard_config.json"
+    
+    if config_path.exists():
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            
+            # Update COM port in config while preserving all other fields
+            if 'robot' in config and 'follower_arms' in config['robot'] and 'main' in config['robot']['follower_arms']:
+                config['robot']['follower_arms']['main']['port'] = com_port
+                # Ensure type field exists
+                if 'type' not in config['robot']['follower_arms']['main']:
+                    config['robot']['follower_arms']['main']['type'] = 'feetech'
+                
+                # Write back to file
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    json.dump(config, f, indent=2, ensure_ascii=False)
+                
+                print(f"✅ 設定ファイル更新: {com_port}")
+                return True
+        except Exception as e:
+            print(f"⚠️ 設定ファイル更新エラー: {e}")
+    
+    return False
 
 
 @parser.wrap()
 def main_control_robot(cfg: ControlPipelineConfig):
+    # Process COM port setting for keyboard mode
+    cfg = _process_com_port_for_keyboard_mode(cfg)
     control_robot(cfg)
 
 
@@ -554,6 +695,8 @@ if __name__ == "__main__":
         # Use custom parser wrap with config path for keyboard mode
         @parser.wrap(config_path=config_path)
         def control_robot_with_config(cfg: ControlPipelineConfig):
+            # Process COM port setting for keyboard mode
+            cfg = _process_com_port_for_keyboard_mode(cfg)
             control_robot(cfg)
 
         control_robot_with_config()

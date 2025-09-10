@@ -19,6 +19,30 @@ wandb
 
 # Data
 data
+
+# Windows specific
+*.bat.bak
+*.ps1.bak
+Thumbs.db
+Desktop.ini
+*.lnk
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Windows configuration
+config.json
+*.local.json
+.env.local
+.env.windows
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 outputs
 
 # Apple

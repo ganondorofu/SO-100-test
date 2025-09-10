@@ -1,0 +1,82 @@
+{
+  "_comment": "SO-100 WebSocket Remote Control Configuration for Windows",
+  "_description": "Windows環境でのSO-100ロボット制御設定ファイル",
+  
+  "hardware": {
+    "com_port": "COM3",
+    "baud_rate": 1000000,
+    "timeout": 1.0,
+    "robot_type": "so100",
+    "motor_ids": [1, 2, 3, 4, 5, 6]
+  },
+  
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8765,
+    "max_connections": 5,
+    "heartbeat_interval": 10,
+    "connection_timeout": 30
+  },
+  
+  "control": {
+    "fps": 30,
+    "max_velocity": 50,
+    "max_acceleration": 100,
+    "position_tolerance": 1.0,
+    "safety_limits_enabled": true
+  },
+  
+  "logging": {
+    "level": "INFO",
+    "file_enabled": true,
+    "file_path": "logs/so100.log",
+    "max_file_size": "10MB",
+    "backup_count": 5,
+    "console_enabled": true
+  },
+  
+  "safety": {
+    "emergency_stop_enabled": true,
+    "position_limits": {
+      "joint_1": [-180, 180],
+      "joint_2": [-90, 90], 
+      "joint_3": [-180, 180],
+      "joint_4": [-180, 180],
+      "joint_5": [-180, 180],
+      "joint_6": [-180, 180]
+    },
+    "velocity_limits": {
+      "max_joint_velocity": 100,
+      "max_linear_velocity": 50
+    }
+  },
+  
+  "gui": {
+    "window_title": "SO-100 Remote Control",
+    "window_size": [800, 600],
+    "update_rate": 30,
+    "theme": "default",
+    "font_size": 10
+  },
+  
+  "network": {
+    "reconnect_attempts": 5,
+    "reconnect_delay": 2.0,
+    "ping_interval": 30,
+    "buffer_size": 8192
+  },
+  
+  "development": {
+    "debug_mode": false,
+    "profile_enabled": false,
+    "test_mode": false,
+    "mock_hardware": false
+  },
+  
+  "windows_specific": {
+    "use_high_precision_timer": true,
+    "set_process_priority": "normal",
+    "disable_usb_power_management": false,
+    "com_port_timeout": 5.0
+  }
+}

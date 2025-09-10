@@ -1,0 +1,38 @@
+{
+  "robot": {
+    "type": "so100",
+    "leader_arms": {
+      "main": {
+        "type": "feetech",
+        "port": "COM8",
+        "motors": {
+          "shoulder_pan": [1, "sts3215"],
+          "shoulder_lift": [2, "sts3215"],
+          "elbow_flex": [3, "sts3215"],
+          "wrist_flex": [4, "sts3215"],
+          "wrist_roll": [5, "sts3215"],
+          "gripper": [6, "sts3215"]
+        }
+      }
+    },
+    "follower_arms": {
+      "main": {
+        "type": "feetech",
+        "port": "COM5",
+        "motors": {
+          "shoulder_pan": [1, "sts3215"],
+          "shoulder_lift": [2, "sts3215"],
+          "elbow_flex": [3, "sts3215"],
+          "wrist_flex": [4, "sts3215"],
+          "wrist_roll": [5, "sts3215"],
+          "gripper": [6, "sts3215"]
+        }
+      }
+    },
+    "cameras": {}
+  },
+  "control": {
+    "type": "calibrate",
+    "arms": ["main_follower", "main_leader"]
+  }
+}
