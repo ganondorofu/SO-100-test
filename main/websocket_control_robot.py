@@ -791,10 +791,15 @@ def main():
     server_parser.add_argument('--port', type=int, default=8765, help='Server port')
     server_parser.add_argument('--com-port', default='COM5', help='COM port for robot')
     server_parser.add_argument('--fps', type=int, default=20, help='Control loop FPS')
+    server_parser.add_argument('--robot.type', dest='robot_type', default='so100', help='Robot type')
     
-    # クライアントモード
+    # クライアントモード  
     client_parser = subparsers.add_parser('client', help='Start WebSocket client')
     client_parser.add_argument('--server-url', default='ws://10.0.20.109:8765', help='Server WebSocket URL')
+    
+    # ポジション記録モード
+    position_parser = subparsers.add_parser('position', help='Start position recording client')
+    position_parser.add_argument('--server-url', default='ws://localhost:8765', help='Server WebSocket URL')
     
     args = parser.parse_args()
     
@@ -817,6 +822,14 @@ def main():
             config = WebSocketClientConfig(
                 server_url=args.server_url
             )
+            client = SO100WebSocketClient(config)
+            client.run()
+            
+        elif args.mode == 'position':
+            config = WebSocketClientConfig(
+                server_url=args.server_url
+            )
+            # ポジション記録用クライアント（基本的にはclientと同じ）
             client = SO100WebSocketClient(config)
             client.run()
             

@@ -1,0 +1,74 @@
+{
+  "robot": {
+    "type": "so101",
+    "leader_arms": {
+      "main": {
+        "type": "feetech",
+        "port": "COM5",
+        "motors": {
+          "shoulder_pan": [1, "sts3215"],
+          "shoulder_lift": [2, "sts3215"],
+          "elbow_flex": [3, "sts3215"],
+          "wrist_flex": [4, "sts3215"],
+          "wrist_roll": [5, "sts3215"],
+          "gripper": [6, "sts3215"]
+        }
+      }
+    },
+    "follower_arms": {
+      "main": {
+        "type": "feetech",
+        "port": "COM8",
+        "motors": {
+          "shoulder_pan": [1, "sts3215"],
+          "shoulder_lift": [2, "sts3215"],
+          "elbow_flex": [3, "sts3215"],
+          "wrist_flex": [4, "sts3215"],
+          "wrist_roll": [5, "sts3215"],
+          "gripper": [6, "sts3215"]
+        }
+      }
+    },
+    "cameras": {
+      "laptop": {
+        "type": "opencv",
+        "camera_index": 0,
+        "fps": 30,
+        "width": 640,
+        "height": 480,
+        "color_mode": "rgb",
+        "channels": 3,
+        "mock": false
+      },
+      "phone": {
+        "type": "opencv",
+        "camera_index": 1,
+        "fps": 30,
+        "width": 1280,
+        "height": 720,
+        "color_mode": "rgb",
+        "channels": 3,
+        "mock": false
+      }
+    }
+  },
+  "control": {
+    "type": "record",
+    "repo_id": "ganondorofu/so101_test",
+    "single_task": "Grasp a lego block and put it in the bin.",
+    "fps": 30,
+    "warmup_time_s": 5,
+    "episode_time_s": 30,
+    "reset_time_s": 30,
+    "num_episodes": 2,
+    "video": true,
+    "push_to_hub": false,
+    "private": false,
+    "tags": ["so101", "tutorial"],
+    "display_data": false,
+    "play_sounds": true,
+    "resume": false,
+    "num_image_writer_processes": 0,
+    "num_image_writer_threads_per_camera": 4
+  }
+}
